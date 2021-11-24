@@ -34,20 +34,20 @@ void adjust_ranges_mac68k(struct emulator_config *cfg) {
     cfg->custom_high = 0;
     cfg->custom_low = 0;
 
+    uint8_t zero_map_found = 0;
+
     // Set up the min/max ranges for mapped reads/writes
     for (int i = 0; i < MAX_NUM_MAPPED_ITEMS; i++) {
         if (cfg->map_type[i] != MAPTYPE_NONE) {
-            if ((cfg->map_offset[i] != 0 && cfg->map_offset[i] < cfg->mapped_low) || cfg->mapped_low == 0)
+            if (cfg->map_offset == 0 && !zero_map_found) {
+                cfg->mapped_low = 0x0;
+                zero_map_found = 1;
+            } else if (cfg->map_offset[i] < cfg->mapped_low && !zero_map_found) {
                 cfg->mapped_low = cfg->map_offset[i];
+            }
+
             if (cfg->map_offset[i] + cfg->map_size[i] > cfg->mapped_high)
                 cfg->mapped_high = cfg->map_offset[i] + cfg->map_size[i];
-        }
-    }
-
-    if (ovl) {
-        int32_t index = get_named_mapped_item(cfg, "sysrom");
-        if (index != -1) {
-            cfg->mapped_low = 0x0;
         }
     }
 
