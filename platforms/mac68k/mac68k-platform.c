@@ -44,6 +44,13 @@ void adjust_ranges_mac68k(struct emulator_config *cfg) {
         }
     }
 
+    if (ovl) {
+        int32_t index = get_named_mapped_item(cfg, "sysrom");
+        if (index != -1) {
+            cfg->mapped_low = 0x0;
+        }
+    }
+
     printf("[MAC68K] Platform custom range: %.8X-%.8X\n", cfg->custom_low, cfg->custom_high);
     printf("[MAC68K] Platform mapped range: %.8X-%.8X\n", cfg->mapped_low, cfg->mapped_high);
 }
