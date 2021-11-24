@@ -91,7 +91,7 @@ void handle_ovl_mappings_mac68k(struct emulator_config *cfg) {
     index = get_named_mapped_item(cfg, "sysrom");
     if (index != -1) {
         cfg->map_offset[index] = (ovl) ? 0x0 : ovl_sysrom_pos;
-        cfg->map_high[index] = cfg->map_size[index];
+        cfg->map_high[index] = cfg->map_offset[index] + cfg->map_size[index];
         m68k_remove_range(cfg->map_data[index]);
         m68k_add_rom_range((uint32_t)cfg->map_offset[index], (uint32_t)cfg->map_high[index], cfg->map_data[index]);
         printf("[MAC68K] Added memory mapping for Mac68k System ROM.\n");
@@ -101,7 +101,7 @@ void handle_ovl_mappings_mac68k(struct emulator_config *cfg) {
     index = get_named_mapped_item(cfg, "sysram");
     if (index != -1) {
         cfg->map_offset[index] = (ovl) ? ovl_sysrom_pos : 0x0;
-        cfg->map_high[index] = cfg->map_size[index];
+        cfg->map_high[index] = cfg->map_offset[index] + cfg->map_size[index];
         m68k_remove_range(cfg->map_data[index]);
         m68k_add_ram_range((uint32_t)cfg->map_offset[index], (uint32_t)cfg->map_high[index], cfg->map_data[index]);
         printf("[MAC68K] Added memory mapping for Mac68k System RAM.\n");
