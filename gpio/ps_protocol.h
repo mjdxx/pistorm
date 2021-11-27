@@ -30,8 +30,11 @@
 #define STATUS_SHIFT_IPL 13
 
 //#define BCM2708_PERI_BASE 0x20000000  // pi0-1
-//#define BCM2708_PERI_BASE	0xFE000000  // pi4
+#ifdef RPI4_TEST
+#define BCM2708_PERI_BASE	0xFE000000  // pi4
+#else
 #define BCM2708_PERI_BASE 0x3F000000  // pi3
+#endif
 #define BCM2708_PERI_SIZE 0x01000000
 
 #define GPIO_ADDR 0x200000 /* GPIO controller */

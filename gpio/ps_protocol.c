@@ -63,18 +63,36 @@ static void setup_gpclk() {
   // on pi model
   *(gpclk + (CLK_GP0_CTL / 4)) = CLK_PASSWD | (1 << 5);
   usleep(10);
-  while ((*(gpclk + (CLK_GP0_CTL / 4))) & (1 << 7))
-    ;
+
+  while ((*(gpclk + (CLK_GP0_CTL / 4))) & (1 << 7));
   usleep(100);
+
+#ifdef RPI4_TEST
+  printf("Setting up GPIO for Pi 4.\n");
+#endif
+
+  printf("Setting up clock divider.\n");
   *(gpclk + (CLK_GP0_DIV / 4)) =
+#ifdef RPI4_TEST
+      CLK_PASSWD | (4 << 12);
+#else
       CLK_PASSWD | (6 << 12);  // divider , 6=200MHz on pi3
+#endif
   usleep(10);
+
+  printf("Setting up clock source.\n");
   *(gpclk + (CLK_GP0_CTL / 4)) =
+#ifdef RPI4_TEST
+      CLK_PASSWD | 5 | (1 << 4);
+#else
       CLK_PASSWD | 5 | (1 << 4);  // pll? 6=plld, 5=pllc
+#endif
   usleep(10);
-  while (((*(gpclk + (CLK_GP0_CTL / 4))) & (1 << 7)) == 0)
-    ;
+
+  while (((*(gpclk + (CLK_GP0_CTL / 4))) & (1 << 7)) == 0);
   usleep(100);
+
+  printf("GPIO setup done.\n");
 
   SET_GPIO_ALT(PIN_CLK, 0);  // gpclk0
 }
