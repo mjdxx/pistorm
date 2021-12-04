@@ -6,9 +6,9 @@ The driver has support and acceleration for all common P96 features except for s
 
 (RTG video output is over the Raspberry Pi HDMI.)
 
-**Note**: The RTG has been rewritten to use raylib instead of SDL. Precompiled raylib libraries are included, there is no need to install any additional dependencies when building the emulator.  
-For raylib to work in the console on a Pi 3, the OpenGL driver must **not** be enabled. If you have the line `dtoverlay=vc4-kms-v3d` enabled for your system setup in `/boot/config.txt`, either comment it out or remove the line.  
-If you are for some reason wanting to test the RTG on a Raspberry Pi 4, you are on your own. Not only can't I test it, you must also install a distro with some flavor of X window manager for it to perform well at all.
+The RTG video output uses the game programming library raylib (https://github.com/raysan5/raylib) to render the graphics and do various color format conversion using shaders for your convenience. Precompiled raylib libraries are included, there is no need to install any additional dependencies when building the emulator.  
+For raylib to work in the console on a Pi 3 **running Raspberry Pi OS Buster**, the OpenGL driver must **not** be enabled. If you have the line `dtoverlay=vc4-kms-v3d` enabled for your system setup in `/boot/config.txt`, either comment it out or remove the line. If you are using **Raspberry Pi OS Bullseye**, you do not need to worry about this.  
+RTG does work on the Raspberry Pi 4 if you build the emulator with `make PLATFORM=PI4`, but some texture formats are no longer supported on the VideoCore 6, and texture clamping is broken for the paletted modes. This will probably be fixed at some point.
 
 # Instructions
 
