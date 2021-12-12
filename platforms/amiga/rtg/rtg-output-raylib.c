@@ -246,7 +246,9 @@ void *rtgThread(void *args) {
     raylib_clut.data = palette;
 
     raylib_clut_texture = LoadTextureFromImage(raylib_clut);
+#ifndef RPI4_TEST
     SetTextureWrap(raylib_clut_texture, TEXTURE_WRAP_CLAMP);
+#endif
 
     raylib_cursor.format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
     raylib_cursor.width = 256;
