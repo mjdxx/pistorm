@@ -37,6 +37,7 @@ const char *config_item_names[CONFITEM_NUM] = {
   "map",
   "loopcycles",
   "mouse",
+  "joyport",
   "keyboard",
   "platform",
   "setvar",
@@ -54,6 +55,20 @@ const char *mapcmd_names[MAPCMD_NUM] = {
   "id",
   "autodump_file",
   "autodump_mem",
+};
+
+const char *joyportcmd_names[JOYPORTCMD_NUM] = {
+  "NONE",
+  "port",
+  "device",
+  "xaxis",
+  "yaxis",
+  "fire1",
+  "fire2",
+  "up",
+  "down",
+  "left",
+  "right",
 };
 
 int get_config_item_type(char *cmd) {
@@ -96,6 +111,16 @@ unsigned int get_map_type(char *name) {
   }
 
   return MAPTYPE_NONE;
+}
+
+unsigned int get_joyport_cmd(char *name) {
+  for (int i = 1; i < JOYPORTCMD_NUM; i++) {
+    if (strcmp(name, joyportcmd_names[i]) == 0) {
+      return i;
+    }
+  }
+
+  return JOYPORTCMD_UNKNOWN;
 }
 
 void trim_whitespace(char *str) {
@@ -339,6 +364,13 @@ void free_config_file(struct emulator_config *cfg) {
     cfg->keyboard_file = NULL;
   }
 
+  for (int i = 0; i < MAX_NUM_JOYPORTS; i++) {
+    if (cfg->joyport_device[i]) {
+      free(cfg->joyport_device[i]);
+      cfg->joyport_device[i] = NULL;
+    }
+  }
+
   m68k_clear_ranges();
 
   printf("[CFG] Config file freed. Maybe.\n");
@@ -460,6 +492,81 @@ struct emulator_config *load_config_file(char *filename) {
         cfg->mouse_enabled = 1;
         printf("[CFG] Enabled mouse event forwarding from file %s, toggle key %c.\n", cfg->mouse_file, cfg->mouse_toggle_key);
         break;
+      case CONFITEM_JOYPORT: {
+	unsigned int joyport_num = 0;
+	char *joyport_device = NULL;
+        int joyport_xaxis = 0, joyport_yaxis = 1;
+        int joyport_fire1 = 0, joyport_fire2 = 1;
+        int joyport_up = -1, joyport_down = -1, joyport_left = -1, joyport_right = -1;
+
+        while (str_pos < (int)strlen(parse_line)) {
+          get_next_string(parse_line, cur_cmd, &str_pos, '=');
+          switch(get_joyport_cmd(cur_cmd)) {
+            case JOYPORTCMD_PORT:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+	      joyport_num=atoi(cur_cmd);
+              break;
+            case JOYPORTCMD_DEV:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+              joyport_device = (char *)calloc(1, strlen(cur_cmd) + 1);
+              strcpy(joyport_device, cur_cmd);
+              break;
+            case JOYPORTCMD_XAXIS:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+	      joyport_xaxis=atoi(cur_cmd);
+              break;
+            case JOYPORTCMD_YAXIS:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+	      joyport_yaxis=atoi(cur_cmd);
+              break;
+            case JOYPORTCMD_FIRE1:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+	      joyport_fire1=atoi(cur_cmd);
+              break;
+            case JOYPORTCMD_FIRE2:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+	      joyport_fire2=atoi(cur_cmd);
+              break;
+            case JOYPORTCMD_UP:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+	      joyport_up=atoi(cur_cmd);
+              break;
+            case JOYPORTCMD_DOWN:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+	      joyport_down=atoi(cur_cmd);
+              break;
+            case JOYPORTCMD_LEFT:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+	      joyport_left=atoi(cur_cmd);
+              break;
+            case JOYPORTCMD_RIGHT:
+              get_next_string(parse_line, cur_cmd, &str_pos, ' ');
+	      joyport_right=atoi(cur_cmd);
+              break;
+            default:
+              printf("[CFG] Unknown/unhandled joyport argument %s on line %d.\n", cur_cmd, cur_line);
+              break;
+          }
+	}
+
+	if (joyport_device && joyport_num && (joyport_num-1)<MAX_NUM_JOYPORTS) {
+          cfg->joyport_device[joyport_num-1]=joyport_device;
+          cfg->joyport_xaxis[joyport_num-1]=joyport_xaxis;
+          cfg->joyport_yaxis[joyport_num-1]=joyport_yaxis;
+          cfg->joyport_fire1[joyport_num-1]=joyport_fire1;
+          cfg->joyport_fire2[joyport_num-1]=joyport_fire2;
+          cfg->joyport_up[joyport_num-1]=joyport_up;
+          cfg->joyport_down[joyport_num-1]=joyport_down;
+          cfg->joyport_left[joyport_num-1]=joyport_left;
+          cfg->joyport_right[joyport_num-1]=joyport_right;
+          cfg->joyport_enabled[joyport_num-1]=1;
+          printf("[CFG] Set joystick port %d to device %s, axes: %d %d, buttons: %d %d %d %d %d %d.\n",
+              joyport_num, joyport_device,
+              joyport_xaxis, joyport_yaxis, joyport_fire1, joyport_fire2,
+              joyport_up, joyport_down, joyport_left, joyport_right);
+        }
+
+      }  break;
       case CONFITEM_KEYBOARD:
         get_next_string(parse_line, cur_cmd, &str_pos, ' ');
         cfg->keyboard_toggle_key = cur_cmd[0];

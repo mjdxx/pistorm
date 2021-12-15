@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 #include <linux/input.h>
+#include <linux/joystick.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -17,6 +21,8 @@
 static int lshift = 0, rshift = 0,/* lctrl = 0, rctrl = 0,*/ lalt = 0, altgr = 0, capslk = 0;
 extern int mouse_fd;
 extern int keyboard_fd;
+
+int joystick_fd[MAX_NUM_JOYPORTS];
 
 // n.b. $fe and $ff are mapped to newmouse standard wheel up/down keycodes, nonexistant on amiga keyboards
 char keymap_amiga[256] = {
@@ -234,3 +240,149 @@ int release_device(int fd) {
   rc = ioctl(fd, EVIOCGRAB, (void *)0);
   return rc;
 }
+
+void joystick_open(struct emulator_config *cfg) {
+  for(int i=0; i<MAX_NUM_JOYPORTS; i++) {
+    if(cfg->joyport_enabled[i]) {
+      joystick_fd[i] = open(cfg->joyport_device[i], O_RDWR | O_NONBLOCK);
+      if (joystick_fd[i] == -1) {
+        printf("Failed to open %s, can't enable joyport %d.\n", cfg->joyport_device[i], i+1);
+        cfg->joyport_enabled[i] = 0;
+      }
+    } else {
+      joystick_fd[i]=-1;
+    }
+  }
+}
+
+void joystick_close() {
+  for(int i=0; i<MAX_NUM_JOYPORTS; i++) {
+    if (joystick_fd[i] != -1) {
+      close(joystick_fd[i]);
+      joystick_fd[i]=-1;
+    }
+  }
+}
+
+int joystick_poll(int fd, struct js_event *event) {
+    ssize_t bytes;
+    bytes = read(fd, event, sizeof(*event));
+    if (bytes == sizeof(*event)) return 1;
+    return 0;
+}
+
+void joystick_update_port1(int state, uint16_t *joy0dat, uint16_t *potgor, uint8_t *ciaapra) {
+  *ciaapra&=~0x40;
+  *potgor&=~0x400;
+  *joy0dat=0;
+
+  if(state&JOYPORT_FIRE1) *ciaapra|=0x40;
+  if(state&JOYPORT_FIRE2) *potgor|=0x400;
+
+  if(!(state&JOYPORT_LEFT) &&   state&JOYPORT_UP ) *joy0dat|=0x100;
+  if(  state&JOYPORT_LEFT  &&   state&JOYPORT_UP ) *joy0dat|=0x200;
+  if(  state&JOYPORT_LEFT  && !(state&JOYPORT_UP)) *joy0dat|=0x300;
+
+  if(!(state&JOYPORT_RIGHT) &&   state&JOYPORT_DOWN)  *joy0dat|=0x1;
+  if(  state&JOYPORT_RIGHT  &&   state&JOYPORT_DOWN)  *joy0dat|=0x2;
+  if(  state&JOYPORT_RIGHT  && !(state&JOYPORT_DOWN)) *joy0dat|=0x3;
+}
+
+void joystick_update_port2(int state, uint16_t *joy1dat, uint16_t *potgor, uint8_t *ciaapra) {
+  *ciaapra&=~0x80;
+  *potgor&=~0x4000;
+  *joy1dat=0;
+
+  if(state&JOYPORT_FIRE1) *ciaapra|=0x80;
+  if(state&JOYPORT_FIRE2) *potgor|=0x4000;
+
+  if(!(state&JOYPORT_LEFT) &&   state&JOYPORT_UP)  *joy1dat|=0x100;
+  if(  state&JOYPORT_LEFT  &&   state&JOYPORT_UP)  *joy1dat|=0x200;
+  if(  state&JOYPORT_LEFT  && !(state&JOYPORT_UP)) *joy1dat|=0x300;
+
+  if(!(state&JOYPORT_RIGHT) &&   state&JOYPORT_DOWN)  *joy1dat|=0x1;
+  if(  state&JOYPORT_RIGHT  &&   state&JOYPORT_DOWN)  *joy1dat|=0x2;
+  if(  state&JOYPORT_RIGHT  && !(state&JOYPORT_DOWN)) *joy1dat|=0x3;
+}
+
+void joystick_update_amiga(struct emulator_config *cfg, uint16_t *joy0dat, uint16_t *joy1dat, uint16_t *potgor, uint8_t *ciaapra) {
+  struct js_event event;
+  int button, pressed;
+  int axis, value;
+
+  for(int i=0; i<MAX_NUM_JOYPORTS; i++) {
+    if(!cfg->joyport_enabled[i]) continue;
+    while(joystick_poll(joystick_fd[i], &event)) {
+      switch(event.type) {
+        case JS_EVENT_BUTTON:
+          button=event.number;
+	  pressed=event.value;
+          cfg->joyport_active[i]=1;
+	  if(button==cfg->joyport_fire1[i]) {
+	    if(pressed) cfg->joyport_state[i]|=JOYPORT_FIRE1;
+	    else cfg->joyport_state[i]&=~JOYPORT_FIRE1;
+          }
+	  if(button==cfg->joyport_fire2[i]) {
+	    if(pressed) cfg->joyport_state[i]|=JOYPORT_FIRE2;
+	    else cfg->joyport_state[i]&=~JOYPORT_FIRE2;
+          }
+	  if(button==cfg->joyport_up[i]) {
+	    if(pressed) cfg->joyport_state[i]|=JOYPORT_UP;
+	    else cfg->joyport_state[i]&=~JOYPORT_UP;
+          }
+	  if(button==cfg->joyport_down[i]) {
+	    if(pressed) cfg->joyport_state[i]|=JOYPORT_DOWN;
+	    else cfg->joyport_state[i]&=~JOYPORT_DOWN;
+          }
+	  if(button==cfg->joyport_left[i]) {
+	    if(pressed) cfg->joyport_state[i]|=JOYPORT_LEFT;
+	    else cfg->joyport_state[i]&=~JOYPORT_LEFT;
+          }
+	  if(button==cfg->joyport_right[i]) {
+	    if(pressed) cfg->joyport_state[i]|=JOYPORT_RIGHT;
+	    else cfg->joyport_state[i]&=~JOYPORT_RIGHT;
+          }
+          break;
+        case JS_EVENT_AXIS:
+	  axis=event.number;
+	  value=event.value;
+	  if(axis==cfg->joyport_xaxis[i]) {
+            if(value<0) {
+              // left
+	      cfg->joyport_state[i]|=JOYPORT_LEFT;
+              cfg->joyport_state[i]&=~JOYPORT_RIGHT;
+            } else if (value>0) {
+              // right
+	      cfg->joyport_state[i]|=JOYPORT_RIGHT;
+              cfg->joyport_state[i]&=~JOYPORT_LEFT;
+            } else {
+              // centre
+              cfg->joyport_state[i]&=~JOYPORT_LEFT;
+              cfg->joyport_state[i]&=~JOYPORT_RIGHT;
+            }
+          }
+	  if(axis==cfg->joyport_yaxis[i]) {
+            if(value<0) {
+              // up
+	      cfg->joyport_state[i]|=JOYPORT_UP;
+              cfg->joyport_state[i]&=~JOYPORT_DOWN;
+            } else if (value>0) {
+              // down
+	      cfg->joyport_state[i]|=JOYPORT_DOWN;
+              cfg->joyport_state[i]&=~JOYPORT_UP;
+            } else {
+              // centre
+              cfg->joyport_state[i]&=~JOYPORT_UP;
+              cfg->joyport_state[i]&=~JOYPORT_DOWN;
+            }
+          }
+          break;
+	default:
+          break;
+      }
+      if(i==0) joystick_update_port1(cfg->joyport_state[0], joy0dat, potgor, ciaapra);
+      else if(i==1) joystick_update_port2(cfg->joyport_state[1], joy1dat, potgor, ciaapra);
+    }
+  }
+}
+

@@ -57,6 +57,10 @@ uint8_t mouse_dx = 0, mouse_dy = 0;
 uint8_t mouse_buttons = 0;
 uint8_t mouse_extra = 0;
 
+uint16_t joystate_joy0dat, joystate_joy1dat;
+uint16_t joystate_potgor;
+uint8_t joystate_ciaapra;
+
 extern uint8_t gayle_int;
 extern uint8_t gayle_ide_enabled;
 extern uint8_t gayle_emulation_enabled;
@@ -275,7 +279,9 @@ void *cpu_task() {
 cpu_loop:
   if (mouse_hook_enabled) {
     get_mouse_status(&mouse_dx, &mouse_dy, &mouse_buttons, &mouse_extra);
+    if(mouse_buttons&0x1) cfg->joyport_active[0]=0;
   }
+  joystick_update_amiga(cfg, &joystate_joy0dat, &joystate_joy1dat, &joystate_potgor, &joystate_ciaapra);
 
   if (realtime_disassembly && (do_disasm || cpu_emulation_running)) {
     m68k_disassemble(disasm_buf, m68k_get_reg(NULL, M68K_REG_PC), cpu_type);
@@ -504,6 +510,7 @@ void sigint_handler(int sig_num) {
     close(mouse_fd);
   if (mem_fd)
     close(mem_fd);
+  joystick_close();
 
   if (cfg->platform->shutdown) {
     cfg->platform->shutdown(cfg);
@@ -652,6 +659,8 @@ switch_config:
   if (cfg->keyboard_autoconnect)
     kb_hook_enabled = 1;
 
+  joystick_open(cfg);
+
   InitGayle();
 
   signal(SIGINT, sigint_handler);
@@ -710,6 +719,7 @@ switch_config:
     close(mouse_fd);
   if (mem_fd)
     close(mem_fd);
+  joystick_close();
 
   if (load_new_config != 0)
     goto switch_config;
@@ -789,11 +799,19 @@ static inline int32_t platform_read_check(uint8_t type, uint32_t addr, uint32_t 
           return amiga_handle_intrqr_read(res);
           break;
         case CIAAPRA:
-          if (mouse_hook_enabled && (mouse_buttons & 0x01)) {
+          if (mouse_hook_enabled && (mouse_buttons & 0x01) && !cfg->joyport_active[0]) {
             rres = (uint32_t)ps_read(type, addr);
-            *res = (rres ^ 0x40);
+            rres = (rres ^ 0x40);
+	    if(cfg->joyport_active[1]) rres^=(uint32_t)joystate_ciaapra;
+	    *res=rres;
             return 1;
           }
+          if (cfg->joyport_active[0] || cfg->joyport_active[1]) {
+            rres = (uint32_t)ps_read(type, addr);
+	    rres^=(uint32_t)joystate_ciaapra;
+            *res=rres;
+            return 1;
+          } 
           if (swap_df0_with_dfx && spoof_df0_id) {
             // DF0 doesn't emit a drive type ID on RDY pin
             // If swapping DF0 with DF1-3 we need to provide this ID so that DF0 continues to function.
@@ -822,9 +840,19 @@ static inline int32_t platform_read_check(uint8_t type, uint32_t addr, uint32_t 
           return 0;
           break;
         case JOY0DAT:
-          if (mouse_hook_enabled) {
+          if (cfg->joyport_active[0]==1) {
+            *res = (unsigned int)joystate_joy0dat;
+            return 1;
+          } else if (mouse_hook_enabled) {
             unsigned short result = (mouse_dy << 8) | (mouse_dx);
             *res = (unsigned int)result;
+            return 1;
+          }
+          return 0;
+          break;
+        case JOY1DAT:
+          if (cfg->joyport_active[1]) {
+            *res = (unsigned int)joystate_joy1dat;
             return 1;
           }
           return 0;
@@ -861,17 +889,25 @@ static inline int32_t platform_read_check(uint8_t type, uint32_t addr, uint32_t 
           break;
         }
         case POTGOR:
-          if (mouse_hook_enabled) {
+          if (mouse_hook_enabled && !cfg->joyport_active[0]) {
             unsigned short result = (unsigned short)ps_read(type, addr);
             // bit 1 rmb, bit 2 mmb
             if (mouse_buttons & 0x06) {
               *res = (unsigned int)((result ^ ((mouse_buttons & 0x02) << 9))   // move rmb to bit 10
                                   & (result ^ ((mouse_buttons & 0x04) << 6))); // move mmb to bit 8
+              if(cfg->joyport_active[1]) result^=(unsigned short)joystate_potgor;
               return 1;
             }
+            if(cfg->joyport_active[1]) result^=(unsigned short)joystate_potgor;
             *res = (unsigned int)(result & 0xfffd);
             return 1;
           }
+          if (cfg->joyport_active[0] || cfg->joyport_active[1]) {
+            unsigned short result = (unsigned short)ps_read(type, addr);
+	    result^=(unsigned short)joystate_potgor;
+            *res = (unsigned int)result;
+            return 1;
+          } 
           return 0;
           break;
         case CIABPRB:

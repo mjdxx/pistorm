@@ -42,6 +42,7 @@ typedef enum {
   CONFITEM_MAP,
   CONFITEM_LOOPCYCLES,
   CONFITEM_MOUSE,
+  CONFITEM_JOYPORT,
   CONFITEM_KEYBOARD,
   CONFITEM_PLATFORM,
   CONFITEM_SETVAR,
@@ -56,6 +57,23 @@ typedef enum {
   OP_TYPE_MEM,
   OP_TYPE_NUM,
 } map_op_types;
+
+#define MAX_NUM_JOYPORTS 2
+
+typedef enum {
+  JOYPORTCMD_UNKNOWN,
+  JOYPORTCMD_PORT,
+  JOYPORTCMD_DEV,
+  JOYPORTCMD_XAXIS,
+  JOYPORTCMD_YAXIS,
+  JOYPORTCMD_FIRE1,
+  JOYPORTCMD_FIRE2,
+  JOYPORTCMD_UP,
+  JOYPORTCMD_DOWN,
+  JOYPORTCMD_LEFT,
+  JOYPORTCMD_RIGHT,
+  JOYPORTCMD_NUM,
+} joyport_cmds;
 
 struct emulator_config {
   unsigned int cpu_type;
@@ -79,6 +97,19 @@ struct emulator_config {
   unsigned int loop_cycles;
   unsigned int mapped_low, mapped_high;
   unsigned int custom_low, custom_high;
+
+  unsigned char joyport_enabled[MAX_NUM_JOYPORTS];
+  unsigned char joyport_active[MAX_NUM_JOYPORTS];
+  char *joyport_device[MAX_NUM_JOYPORTS];
+  int joyport_xaxis[MAX_NUM_JOYPORTS];
+  int joyport_yaxis[MAX_NUM_JOYPORTS];
+  int joyport_fire1[MAX_NUM_JOYPORTS];
+  int joyport_fire2[MAX_NUM_JOYPORTS];
+  int joyport_up[MAX_NUM_JOYPORTS];
+  int joyport_down[MAX_NUM_JOYPORTS];
+  int joyport_left[MAX_NUM_JOYPORTS];
+  int joyport_right[MAX_NUM_JOYPORTS];
+  int joyport_state[MAX_NUM_JOYPORTS];
 };
 
 struct platform_config {
